@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            "robot_node = robot.robot_node:main"
+            "robot_node = robot.robot_node:main",
+            "clicked_point_subscriber = robot.clicked_point_subscriber:main" 
         ],
     },
 )

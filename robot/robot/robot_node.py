@@ -9,43 +9,49 @@ from yasmin_viewer import YasminViewerPub
 
 class InitialState(State):
     def __init__(self) -> None:
-        super().__init__(["start_gazebo","start_slam_operation","run_teleoperation","save_map","end"])
-        self.gazeboIsStarted = False
-        self.slamOperationIsStarted = False
-        self.teleoperationIsStarted = False
-        self.mapSavingIsStarted = False
+        super().__init__(["start_gazebo","start_slam_operation","run_teleoperation","save_map","create_station","end"])
+
     def execute(self,blackboard: Blackboard) -> str:
         # burada ana durumda komutlar alarak diğer durumlara geçiş yap
         print("initial state is active")
         
         flag = True
         while(flag):
-            print("\nSelect Process\n1) Load Gazebo World\n2) Start Slam Operation\n3) Run Teleoperation Node\n4)Save Map\nQ)Exit")
+            print("\nSelect Process\n1) Load Gazebo World\n2) Start Slam Operation\n3) Run Teleoperation Node\n4)Save Map\n5)Create Station Point\nQ)Exit")
             choice = input("Your Choice: ")
+            
+            #print("gazeboIsStarted" in blackboard)
+            
             if choice == "1":
-                if  self.gazeboIsStarted:
+                if "gazeboIsStarted" in blackboard and blackboard["gazeboIsStarted"]:
                     print("\nGazebo World is already started! ")
                 else:
-                    self.gazeboIsStarted = True
+                    blackboard["gazeboIsStarted"] = True
                     return "start_gazebo"
             if choice == "2":
-                if  self.slamOperationIsStarted:
-                    print("\nSLAM operation is already started! ")
+                if "slamOperationIsStarted" in blackboard and blackboard["slamOperationIsStarted"]:
+                    print("\nSLAM operation is already started!")
                 else:
-                    self.slamOperationIsStarted = True
+                    blackboard["slamOperationIsStarted"] = True
                     return "start_slam_operation"
             if choice == "3":
-                if  self.teleoperationIsStarted:
+                if  "teleoperationIsStarted" in blackboard and blackboard["teleoperationIsStarted"]:
                     print("\nTeleoperation is already started! ")
                 else:
-                    self.teleoperationIsStarted = True
+                    blackboard["teleoperationIsStarted"] = True
                     return "run_teleoperation"
             if choice == "4":
-                if  self.mapSavingIsStarted:
+                if  "mapSavingIsStarted" in blackboard and blackboard["mapSavingIsStarted"]:
                     print("\nMap saving process is already started! ")
                 else:
-                    self.mapSavingIsStarted = True
+                    blackboard["mapSavingIsStarted"] = True
                     return "save_map"
+            if choice == "5":
+                if "createStationIsStarted" in blackboard and blackboard["createStationIsStarted"]:
+                    print("\nCreate Station is already started")
+                else:
+                    blackboard["createStationIsStarted"]  = True
+                    return "create_station"
             if choice == "q" or choice == "Q":
                 return "end"
 
@@ -101,12 +107,34 @@ class SavingMapState(State):
     def execute(self, blackboard: Blackboard) -> str:
         print("map saving state..")
         time.sleep(5)
-        subprocess.call('ros2 run nav2_map_server map_saver_cli -f ~/map',shell=True)
+        subprocess.call('ros2 run nav2_map_server map_saver_cli -f ~/yasmin_ws/map',shell=True)
         time.sleep(5)
         blackboard["map_saved"] = True
         return "map_saved"
+
+class CreateStationState(State):
+    # teleop yaparken o anki robot konumunun istasyon olarak kaydedilmesi için istasyon kaydetme durumuna geçip istasyon oluşturulması
+    # initial state kayıt sonrası dönüş
+    def __init__(self):
+        super().__init__(["station_created"])
     
-    
+    def execute(self,blackboard : Blackboard) -> str:
+        print("station creating is active")
+        # listen /clicked_point topic by starting subscriber program
+        clickedPointSubscriberProcess = subprocess.Popen(["ros2","run","robot","clicked_point_subscriber"])
+        
+        choice = input("Press Q to exit station creating state")
+        while(choice != "Q" and choice != "q"):
+            # wait until exit command from cli
+            choice = input("Press Q to exit station creating state")
+        
+        # kill listener process
+        clickedPointSubscriberProcess.kill()
+        
+        # go back to initial state
+        return "station_created"
+        
+
 class RobotNode(Node):
     def __init__(self):
         super().__init__("robot_node")
@@ -123,6 +151,7 @@ class RobotNode(Node):
                 "start_slam_operation" : "SlamOperationState",
                 "run_teleoperation" : "TeleoperationState",
                 "save_map" : "SavingMapState",
+                "create_station" : "CreateStationState",
                 "end" : "end"
             }
         )
@@ -157,8 +186,16 @@ class RobotNode(Node):
                 "map_saved" : "InitialState"
             }
         )
+
+        self.sm.add_state(
+            "CreateStationState",
+            CreateStationState(),
+            transitions= {
+                "station_created" : "InitialState"
+            }
+        )
         # Publish FSM info
-        #YasminViewerPub("yasmin_demo", self.sm)
+        #YasminViewerPub("CreateStationState", self.sm)
         
         # Execute the FSM
         outcome = self.sm()
