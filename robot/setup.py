@@ -21,7 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             "robot_node = robot.robot_node:main",
-            "clicked_point_subscriber = robot.clicked_point_subscriber:main" 
+            "clicked_point_subscriber = robot.clicked_point_subscriber:main",
         ],
     },
 )
